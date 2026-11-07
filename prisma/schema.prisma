@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  GUEST
+  STUDENT
+  MENTOR
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  CANDIDATE
+  ACTIVE
+  COMPLETED
+  BLOCKED
+}
+
+enum GroupRole {
+  STUDENT
+  MENTOR
+  EXPERT
+  PSYCHOLOGIST
+}
+
+model User {
+  id            String     @id @default(uuid())
+  participantId String?    @unique
+  email         String     @unique
+  passwordHash  String
+  fullName      String?
+  phone         String?
+  role          UserRole   @default(GUEST)
+  status        UserStatus @default(PENDING)
+  createdAt     DateTime   @default(now())
+
+  memberships      Membership[]
+  messages         ChatMessage[]
+  materials        Material[]
+  assignments      Assignment[]
+  submissions      Submission[] @relation("StudentSubmissions")
+  reviews          Submission[] @relation("MentorReviews")
+  reports          Report[]
+  createdGroups    Group[]      @relation("GroupCreator")
+  createdEvents    ScheduleEvent[]
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  name      String
+  cohort    String?
+  status    String   @default("active")
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  creator   User?          @relation("GroupCreator", fields: [createdBy], references: [id])
+  members   Membership[]
+  messages  ChatMessage[]
+  forums    Forum[]
+  materials Material[]
+  assignments Assignment[]
+  reports   Report[]
+  events    ScheduleEvent[]
+}
+
+model Membership {
+  id         String    @id @default(uuid())
+  userId     String
+  groupId    String
+  role       GroupRole @default(STUDENT)
+  joinedAt   DateTime  @default(now())
+  status     String    @default("active")
+
+  user  User  @relation(fields: [userId], references: [id])
+  group Group @relation(fields: [groupId], references: [id])
+
+  @@unique([userId, groupId])
+}
+
+model ChatMessage {
+  id           String   @id @default(uuid())
+  groupId      String
+  authorId     String
+  text         String
+  attachmentUrl String?
+  isPinned     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  group  Group @relation(fields: [groupId], references: [id])
+  author User  @relation(fields: [authorId], references: [id])
+}
+
+model Forum {
+  id      String @id @default(uuid())
+  groupId String
+  ownerId String
+  title   String
+  visibility String @default("group")
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id])
+  owner User @relation(fields: [ownerId], references: [id])
+  topics ForumTopic[]
+}
+
+model ForumTopic {
+  id      String @id @default(uuid())
+  forumId String
+  authorId String
+  title   String
+  body    String
+  isPinned Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  forum Forum @relation(fields: [forumId], references: [id])
+  author User @relation(fields: [authorId], references: [id])
+}
+
+model Material {
+  id         String @id @default(uuid())
+  groupId    String?
+  authorId   String
+  title      String
+  type       String @default("document")
+  url        String
+  saveToLibrary Boolean @default(true)
+  createdAt  DateTime @default(now())
+
+  group   Group? @relation(fields: [groupId], references: [id])
+  author  User   @relation(fields: [authorId], references: [id])
+}
+
+model Assignment {
+  id         String   @id @default(uuid())
+  groupId    String
+  authorId   String
+  title      String
+  description String
+  dueAt      DateTime?
+  createdAt  DateTime @default(now())
+
+  group      Group       @relation(fields: [groupId], references: [id])
+  author     User        @relation(fields: [authorId], references: [id])
+  submissions Submission[]
+}
+
+model Submission {
+  id           String   @id @default(uuid())
+  assignmentId String
+  studentId    String
+  mentorId     String?
+  content      String?
+  attachmentUrl String?
+  status       String   @default("draft")
+  score        Int?
+  feedback     String?
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+  student    User       @relation("StudentSubmissions", fields: [studentId], references: [id])
+  mentor     User?      @relation("MentorReviews", fields: [mentorId], references: [id])
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  studentId   String
+  groupId     String
+  period      DateTime
+  content     String
+  status      String   @default("draft")
+  submittedAt DateTime?
+
+  student User  @relation(fields: [studentId], references: [id])
+  group   Group @relation(fields: [groupId], references: [id])
+}
+
+model ScheduleEvent {
+  id         String   @id @default(uuid())
+  groupId    String
+  title      String
+  startsAt   DateTime
+  endsAt     DateTime?
+  meetingUrl String?
+  createdBy  String?
+
+  group   Group @relation(fields: [groupId], references: [id])
+  creator User? @relation(fields: [createdBy], references: [id])
+}
